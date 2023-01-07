@@ -77,7 +77,10 @@ class MainWindow(QMainWindow):
         self.text_button.toggled.connect(self.set_current_tool)
         self.view.mousePressEvent = self.mouse_press_event
         self.view.mouseReleaseEvent = self.mouse_release_event
+        self.view.mouseMoveEvent = self.mouse_move_event
         self.view.keyPressEvent = self.key_press_event
+        self.mouse_key_down = False
+        self.current_item = None
 
     def set_current_tool(self):
         if self.ellipse_button.isChecked():
@@ -98,50 +101,7 @@ class MainWindow(QMainWindow):
 
     def mouse_press_event(self, event):
         self.start_pos = self.view.mapToScene(event.pos())
-
-    def mouse_release_event(self, event):
-        end_pos = self.view.mapToScene(event.pos())
-        if self.current_tool == "ellipse":
-            ellipse_item = QGraphicsEllipseItem(QRectF(self.start_pos, end_pos))
-            ellipse_item.setPen(QPen(self.selected_color,3))
-            ellipse_item.setBrush(QBrush(Qt.transparent))
-            self.scene.addItem(ellipse_item)
-            self.items.append(ellipse_item)
-        elif self.current_tool == "arrow":
-            line_item = QGraphicsLineItem(QLineF(self.start_pos, end_pos))
-            line_item.setPen(QPen(self.selected_color, 3))
-            line_arrow_vector = QVector2D(end_pos-self.start_pos)
-            line_arrow_vector.normalize()
-            line_arrow_vector *= 20
-            line_arrow_point = line_arrow_vector.toPoint()
-            arrow_head_vec1= QTransform().rotate(15).map(line_arrow_point)
-            arrow_head_vec2= QTransform().rotate(-15).map(line_arrow_point)
-            arrow_head_item = QGraphicsPolygonItem(QPolygonF([end_pos,end_pos-arrow_head_vec1,end_pos-arrow_head_vec2])) 
-            arrow_head_item.setPen(QPen(self.selected_color, 3))
-            arrow_item = QGraphicsItemGroup()
-            arrow_item.addToGroup(arrow_head_item)
-            arrow_item.addToGroup(line_item)
-            self.scene.addItem(arrow_item)
-            self.items.append(arrow_item)
-        elif self.current_tool == "guideline":
-            diff = end_pos - self.start_pos
-            line_end_pos = None
-            if(abs(diff.x())>abs(diff.y())):
-                line_end_pos= QPointF(end_pos.x(),self.start_pos.y())
-            else:
-                line_end_pos= QPointF(self.start_pos.x(),end_pos.y())
-            line_item = QGraphicsLineItem(QLineF(line_end_pos,self.start_pos))
-            line_item.setPen(QPen(self.selected_color, 2, Qt.DashLine))
-            self.scene.addItem(line_item)
-            self.items.append(line_item)
-                
-        elif self.current_tool == "rectangle":
-            rect_item = QGraphicsRectItem(QRectF(self.start_pos, end_pos))
-            rect_item.setPen(QPen(self.selected_color))
-            rect_item.setBrush(Qt.transparent)
-            self.scene.addItem(rect_item)
-            self.items.append(rect_item)
-        elif self.current_tool == "text":
+        if self.current_tool == "text":
             text, ok = QInputDialog.getText(self, "Enter Text", "Text:")
             if ok:
                 font = QFont()
@@ -149,9 +109,62 @@ class MainWindow(QMainWindow):
                 text_item = QGraphicsTextItem(text)
                 text_item.setFont(font)
                 text_item.setDefaultTextColor(self.selected_color)
-                text_item.setPos(end_pos.x(),end_pos.y())
+                text_item.setPos(self.start_pos.x(),self.start_pos.y())
                 self.scene.addItem(text_item)
                 self.items.append(text_item)
+        else:
+            self.mouse_key_down = True
+            self.current_item = None
+    
+    def mouse_move_event(self,event):
+        if(self.mouse_key_down):
+            end_pos = self.view.mapToScene(event.pos())
+            if(self.current_item is not None):
+                self.scene.removeItem(self.current_item)
+            if self.current_tool == "ellipse":
+                ellipse_item = QGraphicsEllipseItem(QRectF(self.start_pos, end_pos))
+                ellipse_item.setPen(QPen(self.selected_color,3))
+                ellipse_item.setBrush(QBrush(Qt.transparent))
+                self.current_item = ellipse_item
+            elif self.current_tool == "arrow":
+                line_item = QGraphicsLineItem(QLineF(self.start_pos, end_pos))
+                line_item.setPen(QPen(self.selected_color, 3))
+                line_arrow_vector = QVector2D(end_pos-self.start_pos)
+                line_arrow_vector.normalize()
+                line_arrow_vector *= 20
+                line_arrow_point = line_arrow_vector.toPoint()
+                arrow_head_vec1= QTransform().rotate(15).map(line_arrow_point)
+                arrow_head_vec2= QTransform().rotate(-15).map(line_arrow_point)
+                arrow_head_item = QGraphicsPolygonItem(QPolygonF([end_pos,end_pos-arrow_head_vec1,end_pos-arrow_head_vec2])) 
+                arrow_head_item.setPen(QPen(self.selected_color, 3))
+                arrow_item = QGraphicsItemGroup()
+                arrow_item.addToGroup(arrow_head_item)
+                arrow_item.addToGroup(line_item)
+                self.current_item = arrow_item
+            elif self.current_tool == "guideline":
+                diff = end_pos - self.start_pos
+                line_end_pos = None
+                if(abs(diff.x())>abs(diff.y())):
+                    line_end_pos= QPointF(end_pos.x(),self.start_pos.y())
+                else:
+                    line_end_pos= QPointF(self.start_pos.x(),end_pos.y())
+                line_item = QGraphicsLineItem(QLineF(line_end_pos,self.start_pos))
+                line_item.setPen(QPen(self.selected_color, 2, Qt.DashLine))
+                self.current_item = line_item
+            elif self.current_tool == "rectangle":
+                rect_item = QGraphicsRectItem(QRectF(self.start_pos, end_pos))
+                rect_item.setPen(QPen(self.selected_color))
+                rect_item.setBrush(Qt.transparent)
+                self.current_item = rect_item
+            self.scene.addItem(self.current_item)
+
+
+    def mouse_release_event(self, event):
+        self.mouse_key_down = False
+        if(self.current_item):
+            self.items.append(self.current_item)
+        self.current_item = None
+
     def key_press_event(self,event):
         if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
             if(self.items):
