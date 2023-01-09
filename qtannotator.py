@@ -153,7 +153,7 @@ class MainWindow(QMainWindow):
                 self.current_item = line_item
             elif self.current_tool == "rectangle":
                 rect_item = QGraphicsRectItem(QRectF(self.start_pos, end_pos))
-                rect_item.setPen(QPen(self.selected_color))
+                rect_item.setPen(QPen(self.selected_color,3))
                 rect_item.setBrush(Qt.transparent)
                 self.current_item = rect_item
             self.scene.addItem(self.current_item)
